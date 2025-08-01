@@ -43,6 +43,34 @@ const DashboardPage = () => {
     }
   })
 
+  const blockUsersMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      return await userApi.updateUsersBlock(ids)
+    },
+    onSuccess: () => {
+      toast.success("Users blocked successfully")
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setSelectedUserIds([])
+    },
+    onError: (error) => {
+      console.error(error)
+      toast.error("Error blocking users")
+    }
+  })
+  const unblockUsersMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      return await userApi.updateUsersUnblock(ids)
+    },
+    onSuccess: () => {
+      toast.success("Users unblocked successfully")
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setSelectedUserIds([])
+    },
+    onError: (error) => {
+      console.error(error)
+      toast.error("Error unblocking users")
+    }
+  })
   const handleDeleteSelected = () => {
     deleteUsersMutation.mutate(selectedUserIds.map(Number))
   }
@@ -81,13 +109,30 @@ const DashboardPage = () => {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">User Management</h1>
-        <button
+        <div className="flex space-x-2">
+      <button
           onClick={handleDeleteSelected}
           disabled={selectedUserIds.length === 0}
           className="bg-red-500 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           Delete Selected
         </button>
+        <button
+          onClick={() => blockUsersMutation.mutate(selectedUserIds.map(Number))}
+          disabled={selectedUserIds.length === 0}
+          className="bg-yellow-500 text-white px-4 py-2 rounded disabled:opacity-50"
+        >
+          Block
+        </button>
+        <button
+          onClick={() => unblockUsersMutation.mutate(selectedUserIds.map(Number))}
+          disabled={selectedUserIds.length === 0}
+          className="bg-green-500 text-white px-4 py-2 rounded disabled:opacity-50"
+        >
+          Unblock
+        </button>
+        </div>
+        
       </div>
       <Table>
         <TableHeader>
