@@ -9,11 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { userApi } from "@/shared/api/user"
-import {
-  useMutation,
-  useQuery,
-  useQueryClient
-} from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { formatDistanceToNow } from "date-fns"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -29,66 +25,18 @@ const DashboardPage = () => {
   })
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [sortBy, setSortBy] = useState<"name" | "email" | "last_login" | "status">("name")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
 
+  const queryClient = useQueryClient()
   const userList = users?.responseObject || []
+
   const allSelected =
     userList.length > 0 &&
     userList.every((u) => selectedUserIds.includes(String(u.id)))
 
-  const queryClient = useQueryClient()
-
-  const deleteUsersMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      return await userApi.deleteUsers(ids)
-    },
-    onSuccess: () => {
-      toast.success("Users deleted successfully")
-      queryClient.invalidateQueries({ queryKey: ["users"] })
-      setSelectedUserIds([])
-    },
-    onError: () => {
-      toast.error("Error deleting users")
-    }
-  })
-
-  const blockUsersMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      return await userApi.updateUsersBlock(ids)
-    },
-    onSuccess: () => {
-      toast.success("Users blocked successfully")
-      queryClient.invalidateQueries({ queryKey: ["users"] })
-      setSelectedUserIds([])
-    },
-    onError: () => {
-      toast.error("Error blocking users")
-    }
-  })
-
-  const unblockUsersMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      return await userApi.updateUsersUnblock(ids)
-    },
-    onSuccess: () => {
-      toast.success("Users unblocked successfully")
-      queryClient.invalidateQueries({ queryKey: ["users"] })
-      setSelectedUserIds([])
-    },
-    onError: () => {
-      toast.error("Error unblocking users")
-    }
-  })
-
-  const handleDeleteSelected = () => {
-    deleteUsersMutation.mutate(selectedUserIds.map(Number))
-  }
-
   const handleSelectAll = () => {
-    if (allSelected) {
-      setSelectedUserIds([])
-    } else {
-      setSelectedUserIds(userList.map((u) => String(u.id)))
-    }
+    setSelectedUserIds(allSelected ? [] : userList.map((u) => String(u.id)))
   }
 
   const toggleUser = (id: string) => {
@@ -96,6 +44,70 @@ const DashboardPage = () => {
       prev.includes(id) ? prev.filter((uid) => uid !== id) : [...prev, id]
     )
   }
+
+  const handleSort = (field: typeof sortBy) => {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(field)
+      setSortOrder("asc")
+    }
+  }
+
+  const renderArrow = (field: typeof sortBy) => {
+    if (sortBy !== field) return ""
+    return sortOrder === "asc" ? "↑" : "↓"
+  }
+
+  const sortedUsers = [...userList].sort((a, b) => {
+    const aVal = a[sortBy]
+    const bVal = b[sortBy]
+
+    if (aVal == null) return 1
+    if (bVal == null) return -1
+
+    if (sortBy === "last_login") {
+      const aDate = new Date(aVal)
+      const bDate = new Date(bVal)
+      return sortOrder === "asc"
+        ? aDate.getTime() - bDate.getTime()
+        : bDate.getTime() - aDate.getTime()
+    }
+
+    return sortOrder === "asc"
+      ? String(aVal).localeCompare(String(bVal))
+      : String(bVal).localeCompare(String(aVal))
+  })
+
+  const deleteUsersMutation = useMutation({
+    mutationFn: async (ids: number[]) => await userApi.deleteUsers(ids),
+    onSuccess: () => {
+      toast.success("Users deleted successfully")
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setSelectedUserIds([])
+    },
+    onError: () => toast.error("Error deleting users"),
+  })
+
+  const blockUsersMutation = useMutation({
+    mutationFn: async (ids: number[]) => await userApi.updateUsersBlock(ids),
+    onSuccess: () => {
+      toast.success("Users blocked")
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setSelectedUserIds([])
+    },
+    onError: () => toast.error("Error blocking users"),
+  })
+
+  const unblockUsersMutation = useMutation({
+    mutationFn: async (ids: number[]) => await userApi.updateUsersUnblock(ids),
+    onSuccess: () => {
+      toast.success("Users unblocked")
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setSelectedUserIds([])
+    },
+    onError: () => toast.error("Error unblocking users"),
+  })
 
   if (isLoading) {
     return (
@@ -118,39 +130,39 @@ const DashboardPage = () => {
           User Management
         </h1>
         <p className="text-sm text-gray-500">
-          Manage users, block or unblock them as needed.
+          Manage, sort, block or unblock your users below.
         </p>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
+      <div className="bg-white shadow-lg rounded-lg p-4 mb-6 border">
         <div className="flex items-center justify-between mb-4">
           <div className="text-sm text-gray-600">
             Selected: {selectedUserIds.length}
           </div>
           <div className="flex space-x-2">
             <button
-              onClick={handleDeleteSelected}
-              disabled={selectedUserIds.length === 0 || deleteUsersMutation.isPending}
+              onClick={() => deleteUsersMutation.mutate(selectedUserIds.map(Number))}
+              disabled={selectedUserIds.length === 0}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2 transition disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
-              {deleteUsersMutation.isPending ? "Deleting..." : "Delete"}
+              Delete
             </button>
             <button
               onClick={() => blockUsersMutation.mutate(selectedUserIds.map(Number))}
-              disabled={selectedUserIds.length === 0 || blockUsersMutation.isPending}
+              disabled={selectedUserIds.length === 0}
               className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded flex items-center gap-2 transition disabled:opacity-50"
             >
               <ShieldBan className="w-4 h-4" />
-              {blockUsersMutation.isPending ? "Blocking..." : "Block"}
+              Block
             </button>
             <button
               onClick={() => unblockUsersMutation.mutate(selectedUserIds.map(Number))}
-              disabled={selectedUserIds.length === 0 || unblockUsersMutation.isPending}
+              disabled={selectedUserIds.length === 0}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-2 transition disabled:opacity-50"
             >
               <ShieldCheck className="w-4 h-4" />
-              {unblockUsersMutation.isPending ? "Unblocking..." : "Unblock"}
+              Unblock
             </button>
           </div>
         </div>
@@ -161,67 +173,71 @@ const DashboardPage = () => {
               <TableHead className="text-center w-[50px]">
                 <Checkbox checked={allSelected} onCheckedChange={handleSelectAll} />
               </TableHead>
-              <TableHead className="text-center">Name</TableHead>
-              <TableHead className="text-center">Email</TableHead>
-              <TableHead className="text-center">Last Active</TableHead>
-              <TableHead className="text-center">Status</TableHead>
+              <TableHead
+                className="cursor-pointer text-center"
+                onClick={() => handleSort("name")}
+              >
+                Name {renderArrow("name")}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer text-center"
+                onClick={() => handleSort("email")}
+              >
+                Email {renderArrow("email")}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer text-center"
+                onClick={() => handleSort("last_login")}
+              >
+                Last Active {renderArrow("last_login")}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer text-center"
+                onClick={() => handleSort("status")}
+              >
+                Status {renderArrow("status")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isFetching && (
               <TableRow>
                 <TableCell colSpan={5}>
-                  <div className="flex justify-center items-center py-4 text-gray-500">
-                    Updating...
-                  </div>
+                  <div className="py-4 text-center text-gray-500">Refreshing data...</div>
                 </TableCell>
               </TableRow>
             )}
-            {userList.length === 0 && !isFetching ? (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <div className="flex justify-center items-center min-h-[200px] text-gray-500">
-                    No users found.
-                  </div>
+            {sortedUsers.map((user, index) => (
+              <TableRow
+                key={user.id}
+                className={`${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
+              >
+                <TableCell className="text-center">
+                  <Checkbox
+                    checked={selectedUserIds.includes(String(user.id))}
+                    onCheckedChange={() => toggleUser(String(user.id))}
+                  />
+                </TableCell>
+                <TableCell className="text-center">{user.name}</TableCell>
+                <TableCell className="text-center">{user.email}</TableCell>
+                <TableCell className="text-center">
+                  {user.last_login
+                    ? formatDistanceToNow(new Date(user.last_login), { addSuffix: true })
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-center">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      user.status === "active"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {user.status === "active" ? "Active" : "Blocked"}
+                  </span>
                 </TableCell>
               </TableRow>
-            ) : (
-              userList.map((user, i) => (
-                <TableRow
-                  key={user.id}
-                  className={`${i % 2 === 0 ? "bg-gray-50" : ""} ${
-                    user.status === "blocked" ? "bg-red-50" : ""
-                  }`}
-                >
-                  <TableCell className="text-center">
-                    <Checkbox
-                      checked={selectedUserIds.includes(String(user.id))}
-                      onCheckedChange={() => toggleUser(String(user.id))}
-                    />
-                  </TableCell>
-                  <TableCell className="text-center">{user.name}</TableCell>
-                  <TableCell className="text-center">{user.email}</TableCell>
-                  <TableCell className="text-center">
-                    {user.last_login
-                      ? formatDistanceToNow(new Date(user.last_login), {
-                          addSuffix: true,
-                        })
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full font-medium ${
-                        user.status === "active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {user.status === "active" ? "Active" : "Blocked"}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
